@@ -1,0 +1,9 @@
+streamlit>=1.38.0
+python-dotenv
+ibm-watsonx-ai
+pyvis
+plotly
+pandas
+numpy
+opencv-python
+langchain
