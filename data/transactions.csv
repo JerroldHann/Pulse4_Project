@@ -1,0 +1,7 @@
+from,to,amount,risk
+Alice,Bob,5000,0.2
+Bob,Charlie,12000,0.8
+Charlie,Alice,2000,0.3
+Alice,David,7000,0.6
+David,Eve,3000,0.1
+Eve,Bob,15000,0.9
