@@ -1,56 +1,79 @@
 import streamlit as st
-from dotenv import load_dotenv
-from src.agent import ask_agent, extract_query_info
-from src.graph_tool import render_person_graph
+from src.agent import extract_query_info
 from src.risk_engine import analyze_risk
+from src.graph_tool import render_person_graph
+from src.transactions import get_transactions
 
-load_dotenv()
-st.set_page_config(page_title="🏦 Bank Risk AI Agent", layout="wide")
+st.set_page_config(page_title="🏦 AI 风控中心", layout="wide")
+st.title("🏦 AI 风控中心")
 
-st.title("🏦 Bank Risk Intelligence Dashboard")
+# ---------- 固定提示 ----------
+st.markdown("""
+### 💡 你可以询问以下内容：
+- **风险评分**：`交易T001的风险分数是多少？`  
+- **风险图谱**：`显示账户A123的风险关系图`  
+- **风险列表**：`列出所有高风险交易`  
+- **风险分析**：`分析当前风险状况`
+---
+""")
+
+# ---------- 初始化状态 ----------
+for key, val in {"intent": "", "auto_name": "", "auto_txid": "", "query": ""}.items():
+    st.session_state.setdefault(key, val)
 
 col1, col2 = st.columns([0.45, 0.55])
 
-# ============================
-# 左侧：AI 对话区
-# ============================
+# ---------- 左侧：AI助手 ----------
 with col1:
-    st.header("💬 AI Risk Assistant")
-    query = st.text_area("Ask about a client or transaction:")
+    st.header("💬 AI 助手")
+    query = st.text_area("请输入查询：", key="input_query")
 
     if st.button("Analyze"):
-        with st.status("🤖 Interpreting your request...", expanded=True) as status:
-            parsed = extract_query_info(query)
-            st.write("**AI parsed your query as:**")
-            st.json(parsed)
-            status.update(label="✅ Interpretation complete", state="complete")
-        st.session_state["parsed"] = parsed  # 缓存结果
+        parsed = extract_query_info(query)
+        st.json(parsed)
+        st.session_state["intent"] = parsed.get("intent", "")
+        st.session_state["auto_name"] = parsed.get("name", "")
+        st.session_state["auto_txid"] = parsed.get("transaction_id", "")
+        st.session_state["query"] = query
+        st.toast(f"✅ 解析成功：{st.session_state['intent']} → {st.session_state['auto_name']}")
 
-# ============================
-# 右侧：智能交互区
-# ============================
+    if st.button("🧹 Clear"):
+        for k in ["intent", "auto_name", "auto_txid", "input_query"]:
+            st.session_state.pop(k, None)
+        st.rerun()
+
+# ---------- 右侧：功能区 ----------
 with col2:
-    tab1, tab2 = st.tabs(["⚠️ Risk Analysis", "🕸 Transaction Graph"])
+    tabs = st.tabs(["⚠️ 风险分数", "🕸 风险图谱", "📋 风险交易列表"])
 
-    # 风险分析
-    with tab1:
-        st.subheader("📊 Risk Score Panel")
-        name = st.text_input("Client Name", value=st.session_state.get("parsed", {}).get("name", ""))
-        tx_id = st.text_input("Transaction ID", value=st.session_state.get("parsed", {}).get("transaction_id", ""))
+    # Tab 1: 分数
+    with tabs[0]:
+        st.subheader("📊 风险分数")
+        tx = st.text_input("交易编号或客户名", key="auto_txid", value=st.session_state.get("auto_txid", ""))
+        if st.button("Run Risk Analysis"):
+            st.success(analyze_risk(tx or "T001"))
 
-        if not name and not tx_id:
-            st.info("💡 Tip: Ask AI about a client or transaction to auto-fill fields.")
-        elif st.button("Run Risk Analysis"):
-            result = analyze_risk(name or tx_id)
-            st.success(result)
-
-    # 关系图
-    with tab2:
-        st.subheader("🧩 Transaction Relationship Graph")
-        graph_name = st.text_input("Client (or group) Name", value=st.session_state.get("parsed", {}).get("name", ""))
-
-        if not graph_name:
-            st.info("💡 Tip: Ask AI for a client relationship to auto-fill name field.")
-        elif st.button("Generate Graph"):
-            html = render_person_graph(graph_name)
+    # Tab 2: 图谱
+    with tabs[1]:
+        st.subheader("🧩 风险图谱")
+        name = st.text_input("客户名", key="auto_name", value=st.session_state.get("auto_name", ""))
+        if st.button("Generate Graph"):
+            html = render_person_graph(name or "A001")
             st.components.v1.html(html, height=600, scrolling=True)
+
+    # Tab 3: 列表
+    with tabs[2]:
+        st.subheader("📋 风险交易列表")
+        cname = st.text_input("筛选客户名", value=st.session_state.get("auto_name", ""))
+        min_prob = st.slider("最小欺诈概率", 0.0, 1.0, 0.5)
+        df = get_transactions(cname, min_prob)
+        st.dataframe(df, use_container_width=True)
+
+# ---------- 自动跳转 ----------
+intent = st.session_state.get("intent", "")
+if intent == "risk_graph":
+    st.components.v1.html("<script>window.parent.document.querySelectorAll('button[role=\"tab\"]')[1].click();</script>", height=0)
+elif intent == "risk_list":
+    st.components.v1.html("<script>window.parent.document.querySelectorAll('button[role=\"tab\"]')[2].click();</script>", height=0)
+elif intent == "risk_score":
+    st.components.v1.html("<script>window.parent.document.querySelectorAll('button[role=\"tab\"]')[0].click();</script>", height=0)

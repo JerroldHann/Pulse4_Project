@@ -34,7 +34,7 @@
              #mynetwork {
                  width: 100%;
                  height: 600px;
-                 background-color: #111111;
+                 background-color: #111;
                  border: 1px solid lightgray;
                  position: relative;
                  float: left;
@@ -88,8 +88,8 @@
                   
 
                   // parsing and collecting nodes and edges from the python
-                  nodes = new vis.DataSet([]);
-                  edges = new vis.DataSet([]);
+                  nodes = new vis.DataSet([{"color": "#10B981", "id": "A018", "label": "A018", "shape": "dot"}, {"color": "#FF6B35", "id": "A001", "label": "A001", "shape": "dot"}, {"color": "#10B981", "id": "A013", "label": "A013", "shape": "dot"}, {"color": "#10B981", "id": "A003", "label": "A003", "shape": "dot"}, {"color": "#10B981", "id": "A015", "label": "A015", "shape": "dot"}, {"color": "#10B981", "id": "A011", "label": "A011", "shape": "dot"}]);
+                  edges = new vis.DataSet([{"color": "red", "from": "A018", "title": "T001 \u6982\u7387=0.89", "to": "A001"}, {"color": "gray", "from": "A018", "title": "T025 \u6982\u7387=0.52", "to": "A003"}, {"color": "red", "from": "A018", "title": "T011 \u6982\u7387=0.77", "to": "A013"}, {"color": "gray", "from": "A001", "title": "T004 \u6982\u7387=0.49", "to": "A003"}, {"color": "gray", "from": "A001", "title": "T014 \u6982\u7387=0.17", "to": "A015"}, {"color": "gray", "from": "A001", "title": "T089 \u6982\u7387=0.04", "to": "A011"}, {"color": "gray", "from": "A001", "title": "T092 \u6982\u7387=0.60", "to": "A013"}, {"color": "gray", "from": "A013", "title": "T038 \u6982\u7387=0.47", "to": "A015"}]);
 
                   nodeColors = {};
                   allNodes = nodes.get({ returnType: "Object" });
@@ -120,15 +120,6 @@
     },
     "physics": {
         "enabled": true,
-        "forceAtlas2Based": {
-            "avoidOverlap": 0,
-            "centralGravity": 0.005,
-            "damping": 0.4,
-            "gravitationalConstant": -20,
-            "springConstant": 0.08,
-            "springLength": 100
-        },
-        "solver": "forceAtlas2Based",
         "stabilization": {
             "enabled": true,
             "fit": true,
