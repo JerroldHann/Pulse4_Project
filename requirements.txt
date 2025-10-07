@@ -7,3 +7,8 @@ pandas
 numpy
 opencv-python
 langchain
+requests
+torch
+torch_geometric
+networkx
+matplotlib
