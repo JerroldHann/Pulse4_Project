@@ -1,0 +1,17 @@
+{
+    "CSV_PATH": "/kaggle/input/new-dataset-2/dataset_transaction_raw with feature_v2.0.csv",
+    "DEVICE": "cuda",
+    "EMBED_DIM": 64,
+    "EPOCHS": 400,
+    "LR": 0.0002,
+    "CLIP_VALUE": 2.0,
+    "WEIGHT_DECAY": 1e-05,
+    "RANDOM_STATE": 42,
+    "TRAIN_RATIO": 0.7,
+    "VAL_RATIO": 0.1,
+    "TEST_RATIO": 0.2,
+    "Final_Val_CombinedScore": 0.9879173333333333,
+    "Final_Test_OverallAcc": 0.9990900045499772,
+    "Final_Test_FraudRecall": 0.9830373970836227,
+    "Final_Test_CombinedScore": 0.9894584400701645
+}
