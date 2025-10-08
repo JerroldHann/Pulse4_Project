@@ -65,41 +65,15 @@ with col2:
     # Tab 2: Risk Graph
     with tabs[1]:
         st.subheader("🧩 Risk Graph")
-
-        # 🧠 从 sessionStorage 获取上次点击的节点
-        st.markdown("""
-        <script>
-        const selected = window.sessionStorage.getItem("selected_node");
-        if (selected) {
-            window.parent.postMessage({type: "node_click_update", node: selected}, "*");
-            window.sessionStorage.removeItem("selected_node");
-        }
-        </script>
-        """, unsafe_allow_html=True)
-
-        # Streamlit 监听来自 JS 的消息
-        name = st.text_input("Client Name", value=st.session_state.get("auto_name", ""))
-
-        st.markdown("""
-        <script>
-        window.addEventListener("message", (event) => {
-        if (event.data?.type === "node_click_update") {
-            const node = event.data.node;
-            console.log("Auto-updating:", node);
-            const input = window.parent.document.querySelector('input[id*="Client Name"]');
-            if (input) {
-                input.value = node;
-                input.dispatchEvent(new Event('input', { bubbles: true }));
-                window.parent.location.reload(); // 🔄 自动刷新右侧图
-            }
-        }
-        });
-        </script>
-        """, unsafe_allow_html=True)
-
+        name = st.text_input(
+            "Client Name",
+            key="auto_name",
+            value=st.session_state.get("auto_name", "")
+        )
         if st.button("Generate Graph"):
             html = render_person_graph(name or "A001")
             st.components.v1.html(html, height=600, scrolling=True)
+        
 
     # Tab 3: Risk Transactions
     with tabs[2]:
