@@ -6,10 +6,8 @@ def render_person_graph(client_name: str, csv_path="data/daily_transactions.csv"
     """
     Generate and render an interactive transaction graph for a specific client.
     """
-    # Load transaction data
     df = pd.read_csv(csv_path)
 
-    # Build network graph
     G = nx.Graph()
     for _, row in df.iterrows():
         G.add_edge(
@@ -19,29 +17,24 @@ def render_person_graph(client_name: str, csv_path="data/daily_transactions.csv"
             prob=row["fraud_prob"]
         )
 
-    # Handle missing client
     if client_name not in G:
         return "<p>⚠️ No transaction records found for this client.</p>"
 
-    # Build a 1-hop neighborhood subgraph
     subG = nx.ego_graph(G, client_name, radius=1)
 
-    # Initialize visualization
     net = Network(height="600px", width="100%", bgcolor="#ffffff")
-    
-    # Add nodes with colors (orange for center, green for neighbors)
+
     for n in subG.nodes():
         node_size = 20
         net.add_node(
             n,
             color="#444444" if n == client_name else "#A0A0A0",
             label=n,
-            size=node_size,                 # smaller nodes
-            borderWidth=0,           # no border before click
-            borderWidthSelected=node_size/10   # 2 border on click
+            size=node_size,
+            borderWidth=0,
+            borderWidthSelected=node_size/10
         )
 
-    # Add edges (red for high-risk, gray otherwise)
     for u, v, d in subG.edges(data=True):
         color = "red" if d["prob"] > 0.7 else "gray"
         net.add_edge(
@@ -50,7 +43,32 @@ def render_person_graph(client_name: str, csv_path="data/daily_transactions.csv"
             color=color
         )
 
-    # Save and return HTML
-    net.save_graph("data/graph.html")
-    with open("data/graph.html", encoding="utf-8") as f:
+    # Save as temporary HTML
+    html_path = "data/graph.html"
+    net.save_graph(html_path)
+
+    # ✅ Inject JavaScript listener (minimal modification)
+    js_script = """
+    <script>
+    // Wait for vis network to load
+    window.addEventListener('load', () => {
+        const network = window.network;
+        if (!network) return;
+        network.on("click", function (params) {
+            if (params.nodes.length > 0) {
+                const nodeName = params.nodes[0];
+                console.log("Clicked node:", nodeName);
+                // Send message to Streamlit parent iframe
+                window.parent.postMessage({type: "node_click", node: nodeName}, "*");
+            }
+        });
+    });
+    </script>
+    """
+
+    # Append JS to HTML file
+    with open(html_path, "a", encoding="utf-8") as f:
+        f.write(js_script)
+
+    with open(html_path, encoding="utf-8") as f:
         return f.read()

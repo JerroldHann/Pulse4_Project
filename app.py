@@ -27,6 +27,8 @@ col1, col2 = st.columns([0.45, 0.55])
 # ---------- Left: AI Assistant ----------
 with col1:
     st.header("💬 AI Assistant")
+     # Handle "Clear" state flag before rendering input box
+    clear_flag = st.session_state.pop("clear_trigger", False)
     query = st.text_area("Enter your query:", key="input_query")
 
     if st.button("Analyze"):
@@ -39,12 +41,11 @@ with col1:
         st.toast(f"✅ Parsed: {st.session_state['intent']} → {st.session_state['auto_name']}")
 
     if st.button("Clear"):
-        st.session_state["intent"] ="" 
-        st.session_state["auto_name"] ="" 
-        st.session_state["auto_txid"] = "" 
+        for k in ["intent", "auto_name", "auto_txid", "input_query"]:
+            st.session_state.pop(k, None)
         st.session_state["input_query"] = "" 
+        st.session_state["clear_trigger"] = True
         st.rerun()
-
 # ---------- Right: Main Panels ----------
 with col2:
     tabs = st.tabs(["⚠️ Risk Score", "🕸 Risk Graph", "📋 Risk Transactions",
@@ -64,11 +65,38 @@ with col2:
     # Tab 2: Risk Graph
     with tabs[1]:
         st.subheader("🧩 Risk Graph")
-        name = st.text_input(
-            "Client Name",
-            key="auto_name",
-            value=st.session_state.get("auto_name", "")
-        )
+
+        # 🧠 从 sessionStorage 获取上次点击的节点
+        st.markdown("""
+        <script>
+        const selected = window.sessionStorage.getItem("selected_node");
+        if (selected) {
+            window.parent.postMessage({type: "node_click_update", node: selected}, "*");
+            window.sessionStorage.removeItem("selected_node");
+        }
+        </script>
+        """, unsafe_allow_html=True)
+
+        # Streamlit 监听来自 JS 的消息
+        name = st.text_input("Client Name", value=st.session_state.get("auto_name", ""))
+
+        st.markdown("""
+        <script>
+        window.addEventListener("message", (event) => {
+        if (event.data?.type === "node_click_update") {
+            const node = event.data.node;
+            console.log("Auto-updating:", node);
+            const input = window.parent.document.querySelector('input[id*="Client Name"]');
+            if (input) {
+                input.value = node;
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+                window.parent.location.reload(); // 🔄 自动刷新右侧图
+            }
+        }
+        });
+        </script>
+        """, unsafe_allow_html=True)
+
         if st.button("Generate Graph"):
             html = render_person_graph(name or "A001")
             st.components.v1.html(html, height=600, scrolling=True)
