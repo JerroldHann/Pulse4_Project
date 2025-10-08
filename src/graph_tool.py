@@ -27,14 +27,18 @@ def render_person_graph(client_name: str, csv_path="data/daily_transactions.csv"
     subG = nx.ego_graph(G, client_name, radius=1)
 
     # Initialize visualization
-    net = Network(height="600px", width="100%", bgcolor="#111")
+    net = Network(height="600px", width="100%", bgcolor="#ffffff")
     
     # Add nodes with colors (orange for center, green for neighbors)
     for n in subG.nodes():
+        node_size = 20
         net.add_node(
             n,
-            color="#FF6B35" if n == client_name else "#10B981",
-            label=n
+            color="#444444" if n == client_name else "#A0A0A0",
+            label=n,
+            size=node_size,                 # smaller nodes
+            borderWidth=0,           # no border before click
+            borderWidthSelected=node_size/10   # 2 border on click
         )
 
     # Add edges (red for high-risk, gray otherwise)

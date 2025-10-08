@@ -3,6 +3,7 @@ from src.agent import extract_query_info
 from src.risk_engine import analyze_risk
 from src.graph_tool import render_person_graph
 from src.transactions import get_transactions
+from src.simulator import save_and_predict
 
 st.set_page_config(page_title="🏦 AI Risk Center", layout="wide")
 st.title("🏦 AI Risk Center")
@@ -13,7 +14,7 @@ st.markdown("""
 - **Risk score**: `What's the risk score of transaction T001?`
 - **Risk graph**: `Show the relationship graph for account A123`
 - **Risk list**: `List all high-risk transactions`
-- **Risk analysis**: `Analyze the current risk status`,`List all  transactions oF A016`
+- **Risk analysis**: `Analyze the current risk status`,`List all transactions oF A016`
 ---
 """)
 
@@ -46,7 +47,8 @@ with col1:
 
 # ---------- Right: Main Panels ----------
 with col2:
-    tabs = st.tabs(["⚠️ Risk Score", "🕸 Risk Graph", "📋 Risk Transactions"])
+    tabs = st.tabs(["⚠️ Risk Score", "🕸 Risk Graph", "📋 Risk Transactions",
+    "🧪 Simulated Real-time Data"])
 
     # Tab 1: Risk Score
     with tabs[0]:
@@ -78,6 +80,28 @@ with col2:
         min_prob = st.slider("Minimum fraud probability", 0.0, 1.0, 0.5)
         df = get_transactions(cname, min_prob)
         st.dataframe(df, use_container_width=True)
+
+    with tabs[3]:
+        st.subheader("🧪 Simulated Real-time Data")
+
+        st.markdown("Enter JSON data for simulation:")
+        sample_json = """{
+            "transaction_id": "T999",
+            "orig_account": "A123",
+            "dest_account": "B456",
+            "amount": 3200.50,
+            "fraud_prob": 0.42
+        }"""
+        user_json = st.text_area("Input JSON:", sample_json, height=200)
+
+        if st.button("Save & Predict"):
+            result = save_and_predict(user_json)
+            if "error" in result:
+                st.error(result["error"])
+            else:
+                st.success(result["status"])
+                st.json(result["prediction"])
+
 
 # ---------- Auto-switch tabs based on intent ----------
 intent = st.session_state.get("intent", "")
