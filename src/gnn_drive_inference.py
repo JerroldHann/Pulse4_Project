@@ -138,7 +138,7 @@ def update_features(test_json: str, history_df: pd.DataFrame) -> pd.DataFrame:
     print(f"✅ 特征更新完成，共 {len(enriched_df)} 条交易记录。")
     return enriched_df
 
-# ==================== json processing ====================
+# =================== json processing ===================
 def json_processing(json_input:str):
     print("🚀 正在从 Google Drive 中读取历史数据 ...")
     history_df = load_drive_csv(DRIVE_FILE_ID)

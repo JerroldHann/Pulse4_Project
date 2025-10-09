@@ -1,112 +1,231 @@
 import streamlit as st
 from src.agent import extract_query_info
 from src.risk_engine import analyze_risk
-from src.graph_tool import render_person_graph
+from src.graph_tool import render_person_graph, render_high_risk_network
 from src.transactions import get_transactions
 from src.simulator import save_and_predict
+import json
 
+# ---------- Basic Setup ----------
 st.set_page_config(page_title="🏦 AI Risk Center", layout="wide")
 st.title("🏦 AI Risk Center")
 
-# ---------- Fixed tips ----------
+# ---------- Helper ----------
+def _get(key, default=""):
+    return st.session_state.get(key, default)
+
+def _set(key, value):
+    st.session_state[key] = value
+
+def json_dumps_pretty(obj):
+    try:
+        return json.dumps(obj, ensure_ascii=False, indent=2)
+    except Exception:
+        return str(obj)
+
+# ---------- Tips ----------
 st.markdown("""
 ### 💡 You can ask:
-- **Risk score**: `What's the risk score of transaction T001?`
-- **Risk graph**: `Show the relationship graph for account A123`
-- **Risk list**: `List all high-risk transactions`
-- **Risk analysis**: `Analyze the current risk status`,`List all transactions oF A016`
+- **Risk score**: What's the risk score of transaction T001?
+- **Risk graph**: Show the relationship graph for account 241080 (origin only) over the past week
+- **Risk list**: List high-risk transactions from 10 days ago to 5 days ago
+- **Risk analysis**: Analyze the current risk status
 ---
 """)
 
 # ---------- Init session state ----------
-for key, val in {"intent": "", "auto_name": "", "auto_txid": "", "query": ""}.items():
-    st.session_state.setdefault(key, val)
+for k, v in {
+    "intent": "", "auto_name": "", "auto_txid": "",
+    "days_ago": None, "start_days_ago": None, "end_days_ago": None,
+    "use_range": False, "input_query": "", "sim_json": ""
+}.items():
+    st.session_state.setdefault(k, v)
 
 col1, col2 = st.columns([0.45, 0.55])
 
 # ---------- Left: AI Assistant ----------
 with col1:
     st.header("💬 AI Assistant")
-     # Handle "Clear" state flag before rendering input box
-    clear_flag = st.session_state.pop("clear_trigger", False)
+
     query = st.text_area("Enter your query:", key="input_query")
 
-    if st.button("Analyze"):
-        parsed = extract_query_info(query)
-        st.json(parsed)
-        st.session_state["intent"] = parsed.get("intent", "")
-        st.session_state["auto_name"] = parsed.get("name", "")
-        st.session_state["auto_txid"] = parsed.get("transaction_id", "")
-        st.session_state["query"] = query
-        st.toast(f"✅ Parsed: {st.session_state['intent']} → {st.session_state['auto_name']}")
+    c1, c2 = st.columns([0.5, 0.5])
+    with c1:
+        if st.button("Analyze", key="btn_analyze"):
+            parsed = extract_query_info(query)
+            st.json(parsed)
 
-    if st.button("Clear"):
-        for k in ["intent", "auto_name", "auto_txid", "input_query"]:
-            st.session_state.pop(k, None)
-        st.session_state["input_query"] = "" 
-        st.session_state["clear_trigger"] = True
-        st.rerun()
-# ---------- Right: Main Panels ----------
+            # --- Extract values ---
+            _set("intent", parsed.get("intent", ""))
+            _set("auto_name", parsed.get("name", ""))
+            _set("auto_txid", parsed.get("transaction_id", ""))
+
+            days_ago = parsed.get("days_ago", None)
+            start_days = parsed.get("start_days_ago", None)
+            end_days = parsed.get("end_days_ago", None)
+
+            # --- Unified time logic ---
+            if days_ago is not None:
+                _set("days_ago", days_ago)
+                _set("start_days_ago", days_ago)
+                _set("end_days_ago", days_ago)
+                _set("use_range", True)
+            elif start_days is not None or end_days is not None:
+                _set("days_ago", None)
+                _set("start_days_ago", start_days)
+                _set("end_days_ago", end_days)
+                _set("use_range", True)
+            else:
+                _set("days_ago", None)
+                _set("start_days_ago", None)
+                _set("end_days_ago", None)
+                _set("use_range", False)
+
+            st.toast(f"✅ Parsed: {_get('intent')} → {_get('auto_name') or _get('auto_txid')}")
+
+    with c2:
+        if st.button("Clear", key="btn_clear_auto"):
+            for k in ["intent","auto_name","auto_txid","days_ago",
+                      "start_days_ago","end_days_ago","input_query","use_range"]:
+                st.session_state.pop(k, None)
+            st.session_state["clear_trigger"] = True
+            st.rerun()
+
+# ---------- Right: Panels ----------
 with col2:
-    tabs = st.tabs(["⚠️ Risk Score", "🕸 Risk Graph", "📋 Risk Transactions",
-    "🧪 Simulated Real-time Data"])
+    tabs = st.tabs([
+        "⚠️ Risk Score",
+        "🕸 Risk Graph",
+        "📋 Risk Transactions",
+        "🧪 Simulated Real-time Data"
+    ])
 
-    # Tab 1: Risk Score
+    # === Tab 1: Risk Score ===
     with tabs[0]:
         st.subheader("📊 Risk Score")
         tx = st.text_input(
             "Transaction ID or Client Name",
-            key="auto_txid",
-            value=st.session_state.get("auto_txid", "")
+            key="txid_riskscore",
+            value=_get("auto_txid") or _get("auto_name", "")
         )
-        if st.button("Run Risk Analysis"):
+        if st.button("Run Risk Analysis", key="btn_run_score"):
             st.success(analyze_risk(tx or "T001"))
 
-    # Tab 2: Risk Graph
+    # === Tab 2: Risk Graph ===
     with tabs[1]:
         st.subheader("🧩 Risk Graph")
-        name = st.text_input(
-            "Client Name",
-            key="auto_name",
-            value=st.session_state.get("auto_name", "")
+        name = st.text_input("Client Name", key="name_graph", value=_get("auto_name", ""))
+        role = st.selectbox("Role filter", ["both", "origin", "destination"], index=0, key="role_graph")
+        use_range = st.checkbox(
+            "Use date range (days ago)",
+            value=any([
+                _get("use_range", False),
+                _get("days_ago") is not None,
+                _get("start_days_ago") is not None,
+                _get("end_days_ago") is not None
+            ]),
+            key="chk_use_range_graph"
         )
-        if st.button("Generate Graph"):
-            html = render_person_graph(name or "A001")
-            st.components.v1.html(html, height=600, scrolling=True)
-        
 
-    # Tab 3: Risk Transactions
+        start_d = st.number_input(
+            "Start days ago", min_value=0,
+            value=int(_get("start_days_ago") or 7),
+            step=1, key="num_start_graph",
+            disabled=not use_range
+        )
+        end_d = st.number_input(
+            "End days ago", min_value=0,
+            value=int(_get("end_days_ago") or 0),
+            step=1, key="num_end_graph",
+            disabled=not use_range
+        )
+
+        if st.button("Generate Graph", key="btn_graph"):
+            days_range = (int(start_d), int(end_d)) if use_range else None
+            html = render_person_graph(name or "241080", role=role, days_range=days_range)
+            st.components.v1.html(html, height=600, scrolling=True)
+
+    # === Tab 3: Risk Transactions ===
     with tabs[2]:
         st.subheader("📋 Risk Transactions")
-        cname = st.text_input("Filter by Client Name", value=st.session_state.get("auto_name", ""))
-        min_prob = st.slider("Minimum fraud probability", 0.0, 1.0, 0.5)
-        df = get_transactions(cname, min_prob)
-        st.dataframe(df, use_container_width=True)
+        cname = st.text_input("Filter by Client Name", value=_get("auto_name",""), key="txt_cname")
+        min_prob = st.slider("Minimum fraud probability", 0.0, 1.0, 0.5, key="sld_prob")
+        colA, colB, colC = st.columns(3)
+        with colA:
+            use_range2 = st.checkbox(
+                "Use date range (days ago)",
+                value=any([
+                    _get("use_range", False),
+                    _get("days_ago") is not None,
+                    _get("start_days_ago") is not None,
+                    _get("end_days_ago") is not None
+                ]),
+                key="chk_use_range_list"
+            )
+        with colB:
+            s2 = st.number_input(
+                "Start days ago", min_value=0,
+                value=int(_get("start_days_ago") or 7),
+                step=1, key="num_start_list",
+                disabled=not use_range2
+            )
+        with colC:
+            e2 = st.number_input(
+                "End days ago", min_value=0,
+                value=int(_get("end_days_ago") or 0),
+                step=1, key="num_end_list",
+                disabled=not use_range2
+            )
 
+        df = get_transactions(
+            client_name=cname,
+            min_prob=min_prob,
+            start_days_ago=int(s2) if use_range2 else None,
+            end_days_ago=int(e2) if use_range2 else None
+        )
+        st.dataframe(df, use_container_width=True, key="df_list")
+
+        if st.button("Build High-Risk Network", key="btn_highrisk"):
+            html_name = (
+                f"risk_network_{int(s2)}to{int(e2)}days.html"
+                if use_range2 else
+                f"risk_network_{int(_get('days_ago',0))}daysago.html"
+            )
+            html = render_high_risk_network(df, output_html=html_name)
+            st.components.v1.html(html, height=600, scrolling=True)
+
+    # === Tab 4: Simulated Real-time Data ===
     with tabs[3]:
         st.subheader("🧪 Simulated Real-time Data")
+        st.markdown("Paste one JSON object per submission:")
 
-        st.markdown("Enter JSON data for simulation:")
-        sample_json = """{
-            "transaction_id": "T999",
-            "orig_account": "A123",
-            "dest_account": "B456",
-            "amount": 3200.50,
-            "fraud_prob": 0.42
-        }"""
-        user_json = st.text_area("Input JSON:", sample_json, height=200)
+        sample = {
+            "step": 123, "transaction_id": "T999001", "orig_id": "241080", "dest_id": "312345",
+            "amount": 3200.5, "orig_balance_ratio": 0.45, "dest_balance_ratio": 0.33,
+            "orig_curr_volatility": 0.12, "dest_curr_volatility": 0.06
+        }
+        sim_text = st.text_area(
+            "Input JSON", key="txt_sim_json",
+            value=_get("sim_json") or json_dumps_pretty(sample), height=180
+        )
 
-        if st.button("Save & Predict"):
-            result = save_and_predict(user_json)
-            if "error" in result:
-                st.error(result["error"])
-            else:
-                st.success(result["status"])
-                st.json(result["prediction"])
+        colX, colY = st.columns([0.5, 0.5])
+        with colX:
+            if st.button("Save & Predict", key="btn_sim_save"):
+                result = save_and_predict(sim_text)
+                if "error" in result:
+                    st.error(result["error"])
+                else:
+                    st.success(result["status"])
+                    st.json(result["prediction"])
+                    st.rerun()
+        with colY:
+            if st.button("Clear input", key="btn_clear_sim"):
+                st.session_state.pop("sim_json", None)
+                st.rerun()
 
-
-# ---------- Auto-switch tabs based on intent ----------
-intent = st.session_state.get("intent", "")
+# ---------- Auto-switch tabs ----------
+intent = _get("intent","")
 if intent == "risk_graph":
     st.components.v1.html("<script>window.parent.document.querySelectorAll('button[role=\"tab\"]')[1].click();</script>", height=0)
 elif intent == "risk_list":

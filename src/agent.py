@@ -1,140 +1,149 @@
 import os
 import re
 import json
-from ibm_watsonx_ai.foundation_models import Model
 from dotenv import load_dotenv
+from ibm_watsonx_ai.foundation_models import Model
 
-# ----------------------------
-# Load environment variables
-# ----------------------------
+# ========== 1️⃣ Load env ==========
 load_dotenv()
-
 WATSONX_API_KEY = os.getenv("WATSONX_API_KEY")
 WATSONX_URL = os.getenv("WATSONX_URL", "https://us-south.ml.cloud.ibm.com")
 WATSONX_PROJECT_ID = os.getenv("WATSONX_PROJECT_ID")
 
-# ----------------------------
-# Initialize the model
-# ----------------------------
-model = None
+# ========== 2️⃣ Initialize model ==========
+_model = None
 if WATSONX_API_KEY and WATSONX_PROJECT_ID:
     try:
-        model = Model(
-            model_id="meta-llama/llama-2-13b-chat",
-            params={"temperature": 0.2, "max_new_tokens": 200},
+        _model = Model(
+            model_id="ibm/granite-3-2-8b-instruct",
+            params={"temperature": 0.2, "max_new_tokens": 250},
             credentials={"apikey": WATSONX_API_KEY, "url": WATSONX_URL},
             project_id=WATSONX_PROJECT_ID,
         )
-        print("✅ IBM Watsonx AI model initialized successfully.")
+        print("✅ IBM Watsonx AI model initialized.")
     except Exception as e:
-        print(f"⚠️ Failed to initialize model: {e}")
+        print(f"⚠️ Failed to initialize Watsonx model: {e}")
 else:
-    print("⚠️ Missing Watsonx credentials, running in fallback mode.")
+    print("⚠️ Missing Watsonx credentials, fallback rules will be used.")
 
 
-# ----------------------------
-# Query understanding with LLM
-# ----------------------------
-def extract_query_info(query: str):
-    """
-    Use the Watsonx model to intelligently extract the user's intent,
-    name, and transaction information from natural language input.
-    """
-    prompt = f"""
-You are a professional AI assistant for financial risk control.
-Return **only** a JSON object, without any extra explanation.
+# ========== 3️⃣ Fallback rules ==========
+def _fallback_intent(query: str) -> dict:
+    """Rule-based fallback when LLM fails or offline."""
+    q = query.lower()
+    intent = "other"
 
-Task:
-Analyze the user's financial risk-related query, identify the intent,
-and extract key information.
+    if any(k in q for k in ["graph", "network", "relation", "visual", "plot", "图", "网络", "关系"]):
+        intent = "risk_graph"
+    elif any(k in q for k in ["list", "which", "all", "清单", "列表"]):
+        intent = "risk_list"
+    elif any(k in q for k in ["score", "prob", "grade", "分数", "概率"]):
+        intent = "risk_score"
+    elif any(k in q for k in ["analysis", "trend", "report", "统计", "分析"]):
+        intent = "risk_analysis"
 
-Output format (must be valid JSON):
-{{
-  "intent": "risk_score" or "risk_graph" or "risk_list" or "risk_analysis" or "other",
-  "name": "account name",
-  "transaction_id": "transaction ID", 
-  "merchant_id": "merchant ID",
-  "confidence": 0.95
-}}
+    # extract IDs
+    name, txid = "", ""
+    acc = re.search(r"[A-Za-z]*\d{3,}", query)
+    if acc:
+        name = acc.group()
+    tx = re.search(r"T\d+", query, re.IGNORECASE)
+    if tx:
+        txid = tx.group()
 
-Intent definitions:
-- "risk_score": Asking for a risk score / probability / value.
-- "risk_graph": Requesting a visualization / graph / relationship map / network.
-- "risk_list": Listing high-risk transactions or suspicious activities.
-- "risk_analysis": Requesting analysis / statistics / trend / report.
-- "other": Any other type of query.
-
-Important: Return JSON only. No explanations, no text outside braces.
-
-Examples:
-User: Show me the risk score of account A123
-{{"intent": "risk_score", "name": "A123", "transaction_id": "", "merchant_id": "", "confidence": 0.95}}
-
-User: Show today's risk transaction graph
-{{"intent": "risk_graph", "name": "", "transaction_id": "", "merchant_id": "", "confidence": 0.9}}
-
-User: Analyze risk trends
-{{"intent": "risk_analysis", "name": "", "transaction_id": "", "merchant_id": "", "confidence": 0.85}}
-
-User: List all high-risk transactions
-{{"intent": "risk_list", "name": "", "transaction_id": "", "merchant_id": "", "confidence": 0.9}}
-
-Now process this user query:
-User: {query}
-"""
-    try:
-        response = model.generate(prompt=prompt)
-        text = response["results"][0]["generated_text"]
-        print(f"🔍 Raw model output: {text}")
-
-        # Clean up and extract JSON
-        json_text = text.strip().replace("```json", "").replace("```", "")
-        start_idx, end_idx = json_text.find("{"), json_text.rfind("}") + 1
-        parsed = json.loads(json_text[start_idx:end_idx])
-
-        # Ensure required fields exist
-        for key in ["intent", "name", "transaction_id", "merchant_id", "confidence"]:
-            parsed.setdefault(key, "")
-        return parsed
-
-    except Exception as e:
-        print(f"⚠️ Query parsing failed: {e}")
-        return fallback_intent_recognition(query)
-
-
-# ----------------------------
-# Fallback intent recognition (rule-based)
-# ----------------------------
-def fallback_intent_recognition(query: str):
-    """Fallback rule-based intent extraction when LLM parsing fails."""
-    query_lower = query.lower()
-    result = {
-        "intent": "other",
-        "name": "",
-        "transaction_id": "",
+    return {
+        "intent": intent,
+        "name": name,
+        "transaction_id": txid,
         "merchant_id": "",
+        "days_ago": None,
+        "start_days_ago": None,
+        "end_days_ago": None,
         "confidence": 0.5,
     }
 
-    # Intent detection based on keywords
-    if any(k in query_lower for k in ["graph", "network", "visualization", "relation", "map", "plot"]):
-        result["intent"] = "risk_graph"
-    elif any(k in query_lower for k in ["list", "show all", "which", "records"]):
-        result["intent"] = "risk_list"
-    elif any(k in query_lower for k in ["score", "value", "probability", "rating"]):
-        result["intent"] = "risk_score"
-    elif any(k in query_lower for k in ["analysis", "trend", "report", "statistics", "overview"]):
-        result["intent"] = "risk_analysis"
 
-    # Extract possible account name (like A123)
-    acc = re.search(r"[A-Za-z]+\d+", query)
-    if acc:
-        result["name"] = acc.group()
+# ========== 4️⃣ Main LLM extraction ==========
+def extract_query_info(query: str) -> dict:
+    """
+    Extract structured query info using Watsonx or fallback.
+    Return dict with keys:
+    intent, name, transaction_id, merchant_id, days_ago, start_days_ago, end_days_ago.
+    """
+    if not _model:
+        return _fallback_intent(query)
 
-    # Extract transaction ID (like T001)
-    tx = re.search(r"T\d+", query)
-    if tx:
-        result["transaction_id"] = tx.group()
+    prompt = f"""
+You are an intent classification assistant for a financial risk analysis system.
+Extract structured JSON information from the user query.
 
-    print(f"🔧 Fallback intent recognition result: {result}")
-    return result
+Rules:
+1️⃣ Return **valid JSON only**, no explanations.
+2️⃣ Numeric fields must be integers or null (no strings).
+3️⃣ If user mentions a single day like "today", "yesterday", or "5 days ago":
+    → set "days_ago" to that integer, and both "start_days_ago" and "end_days_ago" to null.
+4️⃣ If user mentions a range like "from 10 days ago to 5 days ago":
+    → set "days_ago" to null, "start_days_ago"=10, "end_days_ago"=5.
+5️⃣ If no time mentioned: all three = null.
+
+Schema:
+{{
+  "intent": "risk_score" | "risk_graph" | "risk_list" | "other",
+  "name": "account name if mentioned, else empty",
+  "transaction_id": "transaction id if mentioned, else empty",
+  "merchant_id": "",
+  "days_ago": integer or null,
+  "start_days_ago": integer or null,
+  "end_days_ago": integer or null
+}}
+
+Examples:
+User: "What are today's risky transactions?"
+→ {{"intent": "risk_list", "name": "", "transaction_id": "", "merchant_id": "",
+    "days_ago": 0, "start_days_ago": null, "end_days_ago": null}}
+
+User: "Show risky transactions from 10 days ago to 5 days ago"
+→ {{"intent": "risk_list", "name": "", "transaction_id": "", "merchant_id": "",
+    "days_ago": null, "start_days_ago": 10, "end_days_ago": 5}}
+
+User: "Display risk graph for account 241080 over the past week"
+→ {{"intent": "risk_graph", "name": "241080", "transaction_id": "", "merchant_id": "",
+    "days_ago": null, "start_days_ago": 7, "end_days_ago": 0}}
+
+User: "What's the risk score of transaction T001?"
+→ {{"intent": "risk_score", "name": "", "transaction_id": "T001", "merchant_id": "",
+    "days_ago": null, "start_days_ago": null, "end_days_ago": null}}
+
+Now process this query:
+User question: {query}
+"""
+
+    try:
+        resp = _model.generate(prompt=prompt)
+        text = resp["results"][0]["generated_text"].strip()
+
+        # cleanup & extract JSON
+        text = text.replace("```json", "").replace("```", "").strip()
+        i, j = text.find("{"), text.rfind("}") + 1
+        if i == -1 or j <= 0:
+            print("⚠️ LLM returned non-JSON:", text)
+            return _fallback_intent(query)
+
+        parsed = json.loads(text[i:j])
+
+        # normalize missing keys
+        parsed.setdefault("intent", "other")
+        parsed.setdefault("name", "")
+        parsed.setdefault("transaction_id", "")
+        parsed.setdefault("merchant_id", "")
+        parsed.setdefault("days_ago", None)
+        parsed.setdefault("start_days_ago", None)
+        parsed.setdefault("end_days_ago", None)
+        parsed.setdefault("confidence", 0.9)
+
+        print(f"🔍 Parsed intent: {parsed}")
+        return parsed
+
+    except Exception as e:
+        print(f"⚠️ LLM parsing failed: {e}")
+        return _fallback_intent(query)
