@@ -3,7 +3,6 @@ from src.agent import extract_query_info
 from src.risk_engine import analyze_risk
 from src.graph_tool import render_person_graph, render_high_risk_network
 from src.transactions import get_transactions
-from src.data_utils import load_data_by_days_ago
 from src.simulator import save_and_predict
 import json
 
@@ -27,18 +26,18 @@ def json_dumps_pretty(obj):
 # ---------- Tips ----------
 st.markdown("""
 ### 💡 You can ask:
-- **Risk score**: `What's the risk score of transaction T001?`
-- **Risk graph**: `Show the relationship graph for account 241080 (origin only) over the past week`
-- **Risk list**: `List high-risk transactions from 10 days ago to 5 days ago`
-- **Risk analysis**: `Analyze the current risk status`
+- **Risk score**: What's the risk score of transaction T001?
+- **Risk graph**: Show the relationship graph for account 241080 (origin only) over the past week
+- **Risk list**: List high-risk transactions from 10 days ago to 5 days ago
+- **Risk analysis**: Analyze the current risk status
 ---
 """)
 
 # ---------- Init session state ----------
 for k, v in {
-    "intent":"", "auto_name":"", "auto_txid":"",
-    "days_ago":0, "start_days_ago":None, "end_days_ago":None,
-    "input_query":"", "sim_json":""
+    "intent": "", "auto_name": "", "auto_txid": "",
+    "days_ago": None, "start_days_ago": None, "end_days_ago": None,
+    "use_range": False, "input_query": "", "sim_json": ""
 }.items():
     st.session_state.setdefault(k, v)
 
@@ -48,7 +47,6 @@ col1, col2 = st.columns([0.45, 0.55])
 with col1:
     st.header("💬 AI Assistant")
 
-    clear_flag = st.session_state.pop("clear_trigger", False)
     query = st.text_area("Enter your query:", key="input_query")
 
     c1, c2 = st.columns([0.5, 0.5])
@@ -56,17 +54,39 @@ with col1:
         if st.button("Analyze", key="btn_analyze"):
             parsed = extract_query_info(query)
             st.json(parsed)
-            _set("intent", parsed.get("intent",""))
-            _set("auto_name", parsed.get("name",""))
-            _set("auto_txid", parsed.get("transaction_id",""))
-            _set("days_ago", parsed.get("days_ago", 0))
-            _set("start_days_ago", parsed.get("start_days_ago", None))
-            _set("end_days_ago", parsed.get("end_days_ago", None))
+
+            # --- Extract values ---
+            _set("intent", parsed.get("intent", ""))
+            _set("auto_name", parsed.get("name", ""))
+            _set("auto_txid", parsed.get("transaction_id", ""))
+
+            days_ago = parsed.get("days_ago", None)
+            start_days = parsed.get("start_days_ago", None)
+            end_days = parsed.get("end_days_ago", None)
+
+            # --- Unified time logic ---
+            if days_ago is not None:
+                _set("days_ago", days_ago)
+                _set("start_days_ago", days_ago)
+                _set("end_days_ago", days_ago)
+                _set("use_range", True)
+            elif start_days is not None or end_days is not None:
+                _set("days_ago", None)
+                _set("start_days_ago", start_days)
+                _set("end_days_ago", end_days)
+                _set("use_range", True)
+            else:
+                _set("days_ago", None)
+                _set("start_days_ago", None)
+                _set("end_days_ago", None)
+                _set("use_range", False)
+
             st.toast(f"✅ Parsed: {_get('intent')} → {_get('auto_name') or _get('auto_txid')}")
 
     with c2:
-        if st.button("Clear auto-fill", key="btn_clear_auto"):
-            for k in ["intent","auto_name","auto_txid","days_ago","start_days_ago","end_days_ago","input_query"]:
+        if st.button("Clear", key="btn_clear_auto"):
+            for k in ["intent","auto_name","auto_txid","days_ago",
+                      "start_days_ago","end_days_ago","input_query","use_range"]:
                 st.session_state.pop(k, None)
             st.session_state["clear_trigger"] = True
             st.rerun()
@@ -83,20 +103,30 @@ with col2:
     # === Tab 1: Risk Score ===
     with tabs[0]:
         st.subheader("📊 Risk Score")
-        tx = st.text_input("Transaction ID or Client Name", key="txid_riskscore", value=_get("auto_txid",""))
+        tx = st.text_input(
+            "Transaction ID or Client Name",
+            key="txid_riskscore",
+            value=_get("auto_txid") or _get("auto_name", "")
+        )
         if st.button("Run Risk Analysis", key="btn_run_score"):
             st.success(analyze_risk(tx or "T001"))
 
     # === Tab 2: Risk Graph ===
     with tabs[1]:
         st.subheader("🧩 Risk Graph")
-        name = st.text_input("Client Name", key="name_graph", value=_get("auto_name",""))
-        role = st.selectbox("Role filter", ["both","origin","destination"], index=0, key="role_graph")
+        name = st.text_input("Client Name", key="name_graph", value=_get("auto_name", ""))
+        role = st.selectbox("Role filter", ["both", "origin", "destination"], index=0, key="role_graph")
         use_range = st.checkbox(
             "Use date range (days ago)",
-            value=bool(_get("start_days_ago") is not None),
+            value=any([
+                _get("use_range", False),
+                _get("days_ago") is not None,
+                _get("start_days_ago") is not None,
+                _get("end_days_ago") is not None
+            ]),
             key="chk_use_range_graph"
         )
+
         start_d = st.number_input(
             "Start days ago", min_value=0,
             value=int(_get("start_days_ago") or 7),
@@ -124,7 +154,12 @@ with col2:
         with colA:
             use_range2 = st.checkbox(
                 "Use date range (days ago)",
-                value=False,
+                value=any([
+                    _get("use_range", False),
+                    _get("days_ago") is not None,
+                    _get("start_days_ago") is not None,
+                    _get("end_days_ago") is not None
+                ]),
                 key="chk_use_range_list"
             )
         with colB:
