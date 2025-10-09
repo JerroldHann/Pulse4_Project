@@ -139,6 +139,8 @@ pdm.toml
 # --- Custom (Pulse4 Specific) ---
 # IBM Watsonx credentials
 .ibm_credentials.json
+# HTML exports / generated files
+*.html
 
 # Data exports / generated visuals
 exports/
