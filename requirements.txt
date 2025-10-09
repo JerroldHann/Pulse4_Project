@@ -12,3 +12,6 @@ torch
 torch_geometric
 networkx
 matplotlib
+pydrive2
+oauth2client
+networkx
