@@ -138,21 +138,12 @@ def update_features(test_json: str, history_df: pd.DataFrame) -> pd.DataFrame:
     print(f"✅ 特征更新完成，共 {len(enriched_df)} 条交易记录。")
     return enriched_df
 
-# ==================== 主程序入口 ====================
-if __name__ == "__main__":
+# ==================== json processing ====================
+def json_processing(json_input:str):
     print("🚀 正在从 Google Drive 中读取历史数据 ...")
     history_df = load_drive_csv(DRIVE_FILE_ID)
 
-    test_json = json.dumps({
-        "step": 710,
-        "orig_id": "88640",
-        "dest_id": "60",
-        "amount": 1000.0,
-        "orig_old_balance": 10000.0,
-        "orig_new_balance": 9000.0,
-        "dest_old_balance": 4000.0,
-        "dest_new_balance": 5000.0
-    })
+    test_json = json_input
 
     enriched = update_features(test_json, history_df)
     OUTPUT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "enriched_transactions.csv")
