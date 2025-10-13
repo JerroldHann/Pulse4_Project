@@ -1,31 +1,17 @@
 import os, json
 import numpy as np
 import pandas as pd
-from io import StringIO
-from pydrive2.auth import GoogleAuth
-from pydrive2.drive import GoogleDrive
-from oauth2client.service_account import ServiceAccountCredentials
 
-# ==================== Google Drive 连接 ====================
+# ==================== 本地数据读取 ====================
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CRED_PATH = os.path.join(BASE_DIR, "credentials", "service_account_key.json")
-DRIVE_FILE_ID = "1M3nXLdIBx5FEme9yqqL8k-IRm_ub2egn"
+DATA_PATH = os.path.join(BASE_DIR, "data", "dataset_transaction_raw with feature_v2.0.csv")
 
-def connect_drive():
-    gauth = GoogleAuth()
-    gauth.auth_method = "service"
-    gauth.credentials = ServiceAccountCredentials.from_json_keyfile_name(
-        CRED_PATH, ["https://www.googleapis.com/auth/drive"]
-    )
-    print("✅ Google Drive 登陆成功")
-    return GoogleDrive(gauth)
-
-def load_drive_csv(file_id: str):
-    drive = connect_drive()
-    file = drive.CreateFile({'id': file_id})
-    csv_content = file.GetContentString()
-    df = pd.read_csv(StringIO(csv_content))
-    print(f"✅ 从 Google Drive 读取历史数据：{len(df)} 条记录")
+def load_local_csv(path: str) -> pd.DataFrame:
+    """从本地 CSV 文件读取历史交易数据"""
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"❌ 未找到文件: {path}")
+    df = pd.read_csv(path)
+    print(f"✅ 从本地 CSV 读取历史数据：{len(df)} 条记录")
     return df
 
 # =============== 辅助函数 ==================
@@ -139,19 +125,16 @@ def update_features(test_json: str, history_df: pd.DataFrame) -> pd.DataFrame:
     return enriched_df
 
 # =================== json processing ===================
-def json_processing(json_input:str):
-    print("🚀 正在从 Google Drive 中读取历史数据 ...")
-    history_df = load_drive_csv(DRIVE_FILE_ID)
+def json_processing(json_input: str):
+    print("🚀 正在从本地 CSV 文件中读取历史数据 ...")
+    history_df = load_local_csv(DATA_PATH)
 
-    test_json = json_input
-
-    enriched = update_features(test_json, history_df)
+    enriched = update_features(json_input, history_df)
     OUTPUT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "enriched_transactions.csv")
     enriched.to_csv(OUTPUT_PATH, index=False)
     print(f"✅ 已保存特征增强数据至: {OUTPUT_PATH}")
 
     # 自动调用推理脚本
     import subprocess
-
     print("🚀 正在执行模型推理 ...")
     subprocess.run(["python", "model_gnn.py"])
