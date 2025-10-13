@@ -1,2 +1,3 @@
-transaction_id,orig_account,dest_account,amount,fraud_prob
-T999,A123,B456,3200.5,0.42
+version https://git-lfs.github.com/spec/v1
+oid sha256:e5b726da7230e86ffc59cfa4fbe22f37628a311864a67f6710e78a227a69d8d7
+size 88
