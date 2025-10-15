@@ -3,6 +3,7 @@ import os
 import pandas as pd
 from datetime import datetime
 from .data_utils import resolve_today_csv, _resolve_folder
+from gnn_drive_inference import json_processing
 
 REQUIRED_INPUT_FIELDS = [
     "step","transaction_id","orig_id","dest_id","amount",
@@ -39,7 +40,7 @@ def save_and_predict(user_json_str: str) -> dict:
             if f not in data:
                 return {"error": f"Missing field: {f}"}
 
-        pred = _fake_predict(data)
+        pred = json_processing(data)
 
         # ensure today's CSV exists or create
         folder = _resolve_folder()

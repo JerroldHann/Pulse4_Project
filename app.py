@@ -214,9 +214,14 @@ with col2:
         st.markdown("Paste one JSON object per submission:")
 
         sample = {
-            "step": 123, "transaction_id": "T999001", "orig_id": "241080", "dest_id": "312345",
-            "amount": 3200.5, "orig_balance_ratio": 0.45, "dest_balance_ratio": 0.33,
-            "orig_curr_volatility": 0.12, "dest_curr_volatility": 0.06
+            "step": 710,
+            "orig_id": "88640",
+            "dest_id": "60",
+            "amount": 1000.0,
+            "orig_old_balance": 10000.0,
+            "orig_new_balance": 9000.0,
+            "dest_old_balance": 4000.0,
+            "dest_new_balance": 5000.0
         }
         sim_text = st.text_area(
             "Input JSON", key="txt_sim_json",
