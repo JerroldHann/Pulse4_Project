@@ -232,13 +232,7 @@ with col2:
         with colX:
             if st.button("Save & Predict", key="btn_sim_save"):
                 result = save_and_predict(sim_text)
-                if "error" in result:
-                    st.error(result["error"])
-                else:
-                    st.success(result["status"])
-                    st.json(result["prediction"])
-                    time.sleep(2.8)
-                    st.rerun()
+                
                     
         with colY:
             if st.button("Clear input", key="btn_clear_sim"):

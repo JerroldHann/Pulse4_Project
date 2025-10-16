@@ -7,6 +7,7 @@ import json, pickle, os
 from torch_geometric.data import Data
 from torch_geometric.nn import SAGEConv
 from sklearn.preprocessing import StandardScaler
+import streamlit as st
 
 # ==================== 1️⃣ 自动定位目录 ====================
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))        # src/
@@ -194,4 +195,7 @@ df_out.to_csv(OUTPUT_PATH, index=False)
 
 print(f"\n📄 推理完成，结果已保存至：{OUTPUT_PATH}\n")
 print("📊 推理结果预览：")
-print(df_out.to_string(index=False))
+string_out = df_out.to_string(index=False)
+print(string_out)
+st.json(string_out)
+

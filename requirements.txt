@@ -14,4 +14,4 @@ networkx
 matplotlib
 pydrive2
 oauth2client
-networkx
+scikit-learn

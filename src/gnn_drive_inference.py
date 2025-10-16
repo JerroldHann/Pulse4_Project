@@ -128,13 +128,18 @@ def update_features(test_json: str, history_df: pd.DataFrame) -> pd.DataFrame:
 def json_processing(json_input: str):
     print("🚀 正在从本地 CSV 文件中读取历史数据 ...")
     history_df = load_local_csv(DATA_PATH)
-
+    print(json_input)
+    json_input = json.dumps(json_input) if isinstance(json_input, dict) else json_input
     enriched = update_features(json_input, history_df)
+    print(enriched)
     OUTPUT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "enriched_transactions.csv")
+    script_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "model_gnn.py")
+
     enriched.to_csv(OUTPUT_PATH, index=False)
     print(f"✅ 已保存特征增强数据至: {OUTPUT_PATH}")
 
     # 自动调用推理脚本
     import subprocess
     print("🚀 正在执行模型推理 ...")
-    subprocess.run(["python", "model_gnn.py"])
+    subprocess.run(["python", script_path])
+    return {"status": "Success", "message": "Features updated and prediction done."}
