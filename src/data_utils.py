@@ -65,3 +65,32 @@ def build_feature_store(csv_path: str) -> dict:
             raise ValueError(f"Missing column: {c}")
     return dict(zip(df["transaction_id"].astype(str), df["fraud_prob_pred"].astype(float)))
 
+
+
+def search_prob_amount(tx_id):
+    """
+    Search for the fraud probability and amount based on the transaction ID from the test_predictions_v2.0.csv file.
+    """
+    # Correct path to the CSV file (use the correct location)
+    file_path = os.path.join("/home/yjing/Pulse4_Project/data", "test_predictions_v2.0.csv")
+
+    try:
+        # Read the CSV file
+        df = pd.read_csv(file_path)
+
+        # Search for the transaction ID in the 'transaction_id' column
+        row = df[df['transaction_id'] == int(tx_id)]
+
+        if not row.empty:
+            # Extract fraud probability and amount
+            fraud_prob_pred = row['fraud_prob_pred'].values[0]
+            amount = row['amount'].values[0]
+            return fraud_prob_pred, amount
+        else:
+            # If transaction ID is not found
+            print(f"⚠️ Transaction ID {tx_id} not found in the dataset.")
+            return None, None
+    except Exception as e:
+        print(f"⚠️ Error reading the CSV file or processing the data: {e}")
+        return None, None
+

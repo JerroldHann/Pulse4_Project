@@ -84,7 +84,7 @@ Rules:
 3️⃣ If user mentions "today"
  set "start_days_ago"= today 00:00, "end_days_ago"=current 
 4️⃣ If user mentions "from X days ago to Y days ago", set accordingly.
-5️⃣ If no time mentioned: all two = null.
+5️⃣ If no time mentioned: from today days ago to 31 days ago
 
 Schema:
 {{
@@ -92,8 +92,8 @@ Schema:
   "name": "account name if mentioned, else empty",
   "transaction_id": "transaction id if mentioned, else empty",
   "merchant_id": "",
-  "start_date_time": str(YYYY-MM-DD HH:MM:SS)or null,
-  "end_date_time": str(YYYY-MM-DD HH:MM:SS) or null
+  "start_date_time": str(YYYY-MM-DD HH:MM:SS),
+  "end_date_time": str(YYYY-MM-DD HH:MM:SS)
 }}
 
 Examples:
@@ -108,7 +108,7 @@ User: "Show risky transactions from 10 days ago to 5 days ago"
 
 User: "Display risk graph for account 241080 over the past week"
 → {{"intent": "risk_graph", "name": "241080", "transaction_id": "", "merchant_id": "",
-    "start_date_time": 2025-10-09 20:01:02 "end_date_time": 2025-10-16 20:01:02}}
+    "start_date_time": 2025-10-09 20:01:02 "end_date_time": 2025-10-16 20:01:02}}end_date_time is current_time
 
 User: "Display risk graph for account 241080 from 2025-10-09 to 2025-10-16"
 → {{"intent": "risk_graph", "name": "241080", "transaction_id": "", "merchant_id": "",
@@ -120,7 +120,7 @@ User: "Display risk graph for account 241080 from 2025-10-09 2am to 2025-10-16 3
 
 User: "What's the risk score of transaction T001?"
 → {{"intent": "risk_score", "name": "", "transaction_id": "T001", "merchant_id": "",
-     "start_date_time": null, "end_date_time": null}}
+     "start_date_time": 2025-9-15 20:01:02, "end_date_time": 2025-10-16 20:01:02}}
 
 current time is the current_time.
 Now process this query:
@@ -155,3 +155,78 @@ User question: {query,current_time}
     except Exception as e:
         print(f"⚠️ LLM parsing failed: {e}")
         return _fallback_intent(query)
+
+
+def risk_score_agent(result):
+    """
+    Generate a detailed risk report as an explanation from a financial expert, including the formula and extended explanation in English.
+    """
+    try:
+        # Extract input data
+        tx_id = result['transaction_id']
+        prob = result['input_prob']
+        amount = result['amount']
+        A0 = result['A0_global']
+        RI = result['RI']
+        risk_level = result['risk_level'][0]
+        explanation = result['explanation'][0]
+        recommendation = result['recommendation'][0]
+        
+        # Risk score formula explanation
+        formula = """
+        The Composite Risk Index (RI) is calculated as:
+        RI = σ1 * P(fraud) + σ2 * Â + σ3 * ln(P/(1-P))
+        
+        Where:
+        - σ1: Weight coefficient for fraud probability (0.6)
+        - σ2: Weight coefficient for normalized transaction amount (0.3)
+        - σ3: Weight coefficient for logit-transformed probability term (0.1)
+        - P(fraud): Probability of fraud
+        - Â: Normalized transaction amount (based on global amount percentile A₀)
+        - ln(P/(1-P)): Logit transformation
+        """
+        
+        # Generate detailed explanation
+        detailed_explanation = f"""
+        📊 Transaction {tx_id} Risk Analysis Report:
+        
+        1. **Fraud Probability (P(fraud))**: {prob[0]:.4f}
+        2. **Transaction Amount**: {amount[0]}, with a normalized value (A₀) of {A0:.2f}, meaning this transaction amount is in the top {A0:.2f}% of all historical transactions.
+        3. **Risk Score (RI)**: The composite risk score is {RI[0]:.3f}. This score combines the influence of the fraud probability, transaction amount, and the logit-transformed probability term.
+        
+        Risk Level: **{risk_level}**
+        - Explanation: {explanation}
+        - Recommendation: {recommendation}
+        
+        Formula Explanation: {formula}
+        """
+        
+        # Generate a more detailed financial analysis report using the model
+        input_text = f"""
+        Based on the following transaction data, generate a detailed risk analysis report:
+
+        Transaction ID: {tx_id}
+        Fraud Probability: {prob[0]:.4f}
+        Transaction Amount: {amount[0]}
+        Global Amount Percentile A₀: {A0:.2f}
+        Composite Risk Index (RI): {RI[0]:.3f}
+        Risk Level: {risk_level}
+        Risk Explanation: {explanation}
+        Recommended Actions: {recommendation}
+        
+        Please generate a detailed financial expert analysis for this transaction, explaining the significance of each metric, and providing relevant recommendations based on the risk score.
+        """
+        
+        # Call the model to generate a detailed report, increase max_new_tokens for more content
+        if _model:
+            response = _model.generate(prompt=input_text, params={"temperature": 0.3, "max_new_tokens": 5000})  # Increase tokens
+            print(f"🔍 Full model response: {response}")  # Print the full model response to check
+            ai_text = response.get("results")[0]["generated_text"].strip()  # Extract the generated text from the response
+        else:
+            ai_text = "⚠️ Model not initialized, unable to generate report."
+        
+        # Return the generated text
+        return ai_text
+    
+    except Exception as e:
+        return f"⚠️ Error generating the risk report: {e}"

@@ -86,7 +86,7 @@ def render_person_graph(
 
     # Edges
     for u, v, d in subG.edges(data=True):
-        color = "red" if d.get("prob", 0) > 0.7 else "gray"
+        color = "red" if d.get("prob", 0) > 0.5 else "gray"
         net.add_edge(
             u, v,
             title=f"Transaction: {d.get('tx','N/A')} | Fraud Probability={d.get('prob',0):.2f}",
@@ -118,7 +118,7 @@ def render_high_risk_network(df: pd.DataFrame, output_html: str) -> str:
     for n in G.nodes():
         net.add_node(n, label=n, color="#5B8FF9", size=14, borderWidth=0, borderWidthSelected=2)
     for u, v, d in G.edges(data=True):
-        color = "red" if d.get("prob", 0) > 0.7 else "gray"
+        color = "red" if d.get("prob", 0) > 0.5 else "gray"
         net.add_edge(u, v, color=color, title=f"{d.get('tx')} | prob={d.get('prob',0):.2f}")
 
     os.makedirs(os.path.dirname(output_html) or ".", exist_ok=True)

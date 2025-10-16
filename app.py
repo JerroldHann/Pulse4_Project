@@ -1,10 +1,12 @@
 import streamlit as st
-from src.agent import extract_query_info
-from src.risk_engine import analyze_risk
+from src.agent import extract_query_info, risk_score_agent
+
+from src.risk_engine import composite_risk_index
 from src.graph_tool import render_person_graph, render_high_risk_network
 from src.transactions import get_transactions
 from src.simulator import save_and_predict
 from src.date import date_to_step_range
+from src.data_utils import search_prob_amount
 import json
 import time
 from datetime import datetime
@@ -67,10 +69,6 @@ with col1:
             st.session_state["auto_name3"] = parsed.get("name", "")
             st.session_state["auto_txid"] = parsed.get("transaction_id", "")
             st.session_state["query"] = query
-            # _set("intent", parsed.get("intent", ""))
-            # _set("auto_name", parsed.get("name", ""))
-            # _set("auto_txid", parsed.get("transaction_id", ""))
-            
             st.session_state["start_date_time"] = parsed.get("start_date_time", "")
             st.session_state["end_date_time"] = parsed.get("end_date_time", "")
 
@@ -92,84 +90,89 @@ with col2:
     ])
 
     # === Tab 1: Risk Score ===
-    with tabs[0]:
-        st.subheader("📊 Risk Score")
-        tx = st.text_input(
-            "Transaction ID",
-            key="auto_txid",
-            value=_get("auto_txid")
-        )
-        if st.button("Run Risk Analysis", key="btn_run_score"):
-            st.success(analyze_risk(tx or "T001"))
-
-    # === Tab 2: Risk Graph ===
-    with tabs[1]:
-        # start_date_time = "2025-10-01 00:00:00"
-        # end_date_time = "2025-10-16 03:00:00"
-        st.subheader("🧩 Risk Graph")
-        name = st.text_input("Client Name", key="auto_name2", value=_get("auto_name", ""))
-        role = st.selectbox("Role filter", ["both", "origin", "destination"], index=0, key="role_graph")
-        use_time = st.checkbox(
-            "Use date range",
-            value=any([
-                _get("start_date_time") is not None,
-                _get("end_date_time") is not None
-            ]),
-            key="chk_use_range_graph"
-        )
-       
-        default_date = datetime.today().date()
-        if use_time:
-            # 从 session_state 获取用户之前的选择，如果没有，则使用默认值
-            start_date_time_auto = _get("start_date_time", None)
-            end_date_time_auto = _get("end_date_time", None)
+with tabs[0]:
+    st.subheader("📊 Risk Score")
+    
+    # 输入交易ID
+    tx_id = st.text_input(
+        "Transaction ID",
+        key="auto_txid",
+        value=_get("auto_txid")
+    )
+    
+    # 如果点击按钮，执行风险分析
+    if st.button("Run Risk Analysis", key="btn_run_score"):
+        if not tx_id:
+            st.error("⚠️ Transaction ID cannot be empty.")
+        else:
+            # 查询风险得分
+            prob,amount=search_prob_amount(tx_id)
+            print(f"Query result: prob={prob}, amount={amount}")
+            result = composite_risk_index(
+                prob=[prob],  # 默认欺诈概率，或根据实际场景传入
+                amount=[amount],  # 默认交易金额，或根据实际场景传入
+                transaction_id=tx_id,
+                verbose=True
+            )
             
+            # 输出结果
+            st.success("✅ Risk score calculation completed")
+            ai_text = risk_score_agent(result)
+            st.write(ai_text) 
 
-            # 如果之前有存储日期和时间，则填充，否则默认为空
-            if start_date_time_auto:
-                start_date_time_auto = datetime.strptime(start_date_time_auto, "%Y-%m-%d %H:%M:%S")
-                start_date = start_date_time_auto.date()
-                start_time = start_date_time_auto.time()
-            else:
-                start_date = default_date
-                start_time = datetime.today().time()
+# === Tab 2: Risk Graph ===
+with tabs[1]:
+    
+    st.subheader("🧩 Risk Graph")
+    name = st.text_input("Client Name", key="auto_name2", value=_get("auto_name2", ""))
+    role = st.selectbox("Role filter", ["both", "origin", "destination"], index=0, key="role_graph")
+    
+    start_date_time_auto = st.session_state.get("start_date_time")
+    end_date_time_auto = st.session_state.get("end_date_time")
+    
+    # Check if start_date_time_auto is not None before parsing
+    if start_date_time_auto:
+        start_date_time_auto = datetime.strptime(start_date_time_auto, "%Y-%m-%d %H:%M:%S")
+        start_date = start_date_time_auto.date()
+        start_time = start_date_time_auto.time()
+    else:
+        start_date = datetime.now().date()  # Default to today's date if None
+        start_time = datetime.now().time()  # Default to current time if None
+    
+    # Check if end_date_time_auto is not None before parsing
+    if end_date_time_auto:
+        end_date_time_auto = datetime.strptime(end_date_time_auto, "%Y-%m-%d %H:%M:%S")
+        end_date = end_date_time_auto.date()
+        end_time = end_date_time_auto.time()
+    else:
+        end_date = datetime.now().date()  # Default to today's date if None
+        end_time = datetime.now().time()  # Default to current time if None
 
-            if end_date_time_auto:
-                end_date_time_auto = datetime.strptime(end_date_time_auto, "%Y-%m-%d %H:%M:%S")
-                end_date = end_date_time_auto.date()
-                end_time = end_date_time_auto.time()
-            else:
-                end_date = default_date
-                end_time = datetime.today().time()
+    # 用户选择开始日期和时间
+    start_date = st.date_input("Start date", min_value=datetime(2025, 9, 15),  value=start_date)
+    start_time = st.time_input("Start time", value=start_time)
 
-            # 用户选择开始日期和时间
-            start_date = st.date_input("Start date", min_value=datetime(2025, 1, 1), value=start_date)
-            start_time = st.time_input("Start time", value=start_time)
+    # 用户选择结束日期和时间
+    end_date = st.date_input("End date", min_value=datetime(2025, 9, 15),  value=end_date)
+    end_time = st.time_input("End time", value=end_time)
+    
+    # 将日期和时间拼接为 datetime 对象
+    start_datetime = datetime.combine(start_date, start_time)
+    end_datetime = datetime.combine(end_date, end_time)
 
-            # 用户选择结束日期和时间
-            end_date = st.date_input("End date", min_value=datetime(2025, 1, 1), value=end_date)
-            end_time = st.time_input("End time", value=end_time)
+    # 将 datetime 对象转换为 "YYYY-MM-DD HH:MM:SS" 格式
+    start_date_time_auto = start_datetime.strftime("%Y-%m-%d %H:%M:%S")
+    end_date_time_auto = end_datetime.strftime("%Y-%m-%d %H:%M:%S")
 
-            # 将日期和时间拼接为 datetime 对象
-            start_datetime = datetime.combine(start_date, start_time)
-            end_datetime = datetime.combine(end_date, end_time)
-
-            # 将 datetime 对象转换为 "YYYY-MM-DD HH:MM:SS" 格式
-            start_date_time = start_datetime.strftime("%Y-%m-%d %H:%M:%S")
-            end_date_time = end_datetime.strftime("%Y-%m-%d %H:%M:%S")
-
-
-        if st.button("Generate Graph", key="btn_graph"):
-            # 判断是否使用日期范围
-           
-            step_range = date_to_step_range(start_date_time,end_date_time)
-           
-            # 生成图形的 HTML 内容
-            html = render_person_graph(name or "241080", role=role, step_range=step_range)
-            
-          
-            # 使用 Streamlit 组件显示生成的 HTML 文件
-            st.components.v1.html(html, height=600, scrolling=True)
+    if st.button("Generate Graph", key="btn_graph"):
+        # 判断是否使用日期范围
+        step_range = date_to_step_range(start_date_time_auto, end_date_time_auto)
+        
+        # 生成图形的 HTML 内容
+        html = render_person_graph(name or "241080", role=role, step_range=step_range)
+        
+        # 使用 Streamlit 组件显示生成的 HTML 文件
+        st.components.v1.html(html, height=600, scrolling=True)
 
     # === Tab 3: Risk Transactions ===
     with tabs[2]:

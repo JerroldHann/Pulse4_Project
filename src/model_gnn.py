@@ -186,6 +186,8 @@ df_out = pd.DataFrame({
     "orig_behavior_mode": df.get("orig_behavior_mode", "normal"),
     "dest_behavior_mode": df.get("dest_behavior_mode", "normal")
 })
+file_path = "/home/yjing/Pulse4_Project/data/test_predictions_v2.0.csv"
+
 
 df_out = df_out.sort_values("step").reset_index(drop=True)
 df_out["transaction_id"] = [f"1{int(row.step):03d}{i:05d}" for i, row in enumerate(df_out.itertuples(), start=1)]
@@ -199,3 +201,20 @@ string_out = df_out.to_string(index=False)
 print(string_out)
 st.json(string_out)
 
+try:
+    # Check if the file exists
+    if os.path.exists(file_path):
+        # Append to the file without writing the header
+        df_out.to_csv(file_path, mode='a', header=False, index=False)
+    else:
+        # If the file doesn't exist (should not happen in this case), create it and write the header
+        df_out.to_csv(file_path, mode='w', header=True, index=False)
+
+    print(f"\n📄 Inference completed. Results appended to: {file_path}\n")
+    print("📊 Preview of inference results:")
+    string_out = df_out.to_string(index=False)
+    print(string_out)
+    st.json(string_out)  # Display the result as JSON in Streamlit
+
+except Exception as e:
+    print(f"⚠️ An error occurred while saving the result: {e}")
