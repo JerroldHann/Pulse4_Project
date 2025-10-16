@@ -35,7 +35,8 @@ edge_scaler = scalers["edge_scaler"]
 node2idx = mapping["node2idx"]
 unique_nodes = mapping["unique_nodes"]
 
-DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+# DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+DEVICE = torch.device('cpu')
 print(f"✅ 配置加载完成，使用设备：{DEVICE}")
 
 # ==================== 3️⃣ 数据加载 ====================
@@ -184,8 +185,8 @@ df_out = pd.DataFrame({
     "fraud_prob_pred": probs,
     "isFraud_pred": preds,
 })
-file_path = "/home/yjing/Pulse4_Project/data/test_predictions_v3.0.csv"
 
+file_path = "../data/test_predictions_v3.0.csv"
 
 df_out = df_out.sort_values("step").reset_index(drop=True)
 df_out["transaction_id"] = "1743200002"
@@ -194,6 +195,8 @@ df_out["transaction_id"] = "1743200002"
 df_out = df_out[["transaction_id", "step", "orig_id", "dest_id", "amount", "fraud_prob_pred", "isFraud_pred"]]
 
 OUTPUT_PATH = os.path.join(CURRENT_DIR, "inference_result.csv")
+
+df_out.to_csv(file_path, index=False)  # save in v3.0 (new)
 df_out.to_csv(OUTPUT_PATH, index=False)
 
 print(f"\n📄 推理完成，结果已保存至：{OUTPUT_PATH}\n")
