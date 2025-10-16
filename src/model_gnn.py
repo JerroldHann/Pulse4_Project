@@ -183,14 +183,15 @@ df_out = pd.DataFrame({
     "amount": df["amount"],
     "fraud_prob_pred": probs,
     "isFraud_pred": preds,
-    "orig_behavior_mode": df.get("orig_behavior_mode", "normal"),
-    "dest_behavior_mode": df.get("dest_behavior_mode", "normal")
 })
-file_path = "/home/yjing/Pulse4_Project/data/test_predictions_v2.0.csv"
+file_path = "/home/yjing/Pulse4_Project/data/test_predictions_v3.0.csv"
 
 
 df_out = df_out.sort_values("step").reset_index(drop=True)
-df_out["transaction_id"] = [f"1{int(row.step):03d}{i:05d}" for i, row in enumerate(df_out.itertuples(), start=1)]
+df_out["transaction_id"] = "1743200002"
+
+# Move transaction_id to the first column
+df_out = df_out[["transaction_id", "step", "orig_id", "dest_id", "amount", "fraud_prob_pred", "isFraud_pred"]]
 
 OUTPUT_PATH = os.path.join(CURRENT_DIR, "inference_result.csv")
 df_out.to_csv(OUTPUT_PATH, index=False)
