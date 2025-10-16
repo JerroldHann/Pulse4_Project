@@ -3,7 +3,8 @@ import re
 import json
 from dotenv import load_dotenv
 from ibm_watsonx_ai.foundation_models import Model
-
+import datetime
+current_time = datetime.datetime.now()
 # ========== 1️⃣ Load env ==========
 load_dotenv()
 WATSONX_API_KEY = os.getenv("WATSONX_API_KEY")
@@ -56,9 +57,8 @@ def _fallback_intent(query: str) -> dict:
         "name": name,
         "transaction_id": txid,
         "merchant_id": "",
-        "days_ago": None,
-        "start_days_ago": None,
-        "end_days_ago": None,
+        "start_date_time": None,
+        "end_date_time": None,
         "confidence": 0.5,
     }
 
@@ -68,7 +68,7 @@ def extract_query_info(query: str) -> dict:
     """
     Extract structured query info using Watsonx or fallback.
     Return dict with keys:
-    intent, name, transaction_id, merchant_id, days_ago, start_days_ago, end_days_ago.
+    intent, name, transaction_id, merchant_id, start_date_time, end_date_time
     """
     if not _model:
         return _fallback_intent(query)
@@ -79,12 +79,12 @@ Extract structured JSON information from the user query.
 
 Rules:
 1️⃣ Return **valid JSON only**, no explanations.
-2️⃣ Numeric fields must be integers or null (no strings).
-3️⃣ If user mentions a single day like "today", "yesterday", or "5 days ago":
-    → set "days_ago" to that integer, and both "start_days_ago" and "end_days_ago" to null.
-4️⃣ If user mentions a range like "from 10 days ago to 5 days ago":
-    → set "days_ago" to null, "start_days_ago"=10, "end_days_ago"=5.
-5️⃣ If no time mentioned: all three = null.
+2️⃣ Numeric fields must be integers or null (no strings), and we use current time for computing
+
+3️⃣ If user mentions "today"
+ set "start_days_ago"= today 00:00, "end_days_ago"=current 
+4️⃣ If user mentions "from X days ago to Y days ago", set accordingly.
+5️⃣ If no time mentioned: all two = null.
 
 Schema:
 {{
@@ -92,30 +92,39 @@ Schema:
   "name": "account name if mentioned, else empty",
   "transaction_id": "transaction id if mentioned, else empty",
   "merchant_id": "",
-  "days_ago": integer or null,
-  "start_days_ago": integer or null,
-  "end_days_ago": integer or null
+  "start_date_time": str(YYYY-MM-DD HH:MM:SS)or null,
+  "end_date_time": str(YYYY-MM-DD HH:MM:SS) or null
 }}
 
 Examples:
+If current time is 2025-10-16 20:01:02
 User: "What are today's risky transactions?"
 → {{"intent": "risk_list", "name": "", "transaction_id": "", "merchant_id": "",
-    "days_ago": 0, "start_days_ago": null, "end_days_ago": null}}
+    "start_date_time": "2025-10-16 00:00:00", "end_date_time": "2025-10-16 20:01:02"}}
 
 User: "Show risky transactions from 10 days ago to 5 days ago"
 → {{"intent": "risk_list", "name": "", "transaction_id": "", "merchant_id": "",
-    "days_ago": null, "start_days_ago": 10, "end_days_ago": 5}}
+    "start_date_time": "2025-10-06 20:01:02", "end_date_time": "2025-10-11 20:01:02"}}
 
 User: "Display risk graph for account 241080 over the past week"
 → {{"intent": "risk_graph", "name": "241080", "transaction_id": "", "merchant_id": "",
-    "days_ago": null, "start_days_ago": 7, "end_days_ago": 0}}
+    "start_date_time": 2025-10-09 20:01:02 "end_date_time": 2025-10-16 20:01:02}}
+
+User: "Display risk graph for account 241080 from 2025-10-09 to 2025-10-16"
+→ {{"intent": "risk_graph", "name": "241080", "transaction_id": "", "merchant_id": "",
+    "start_date_time": 2025-10-09 00:00:00, "end_date_time": 2025-10-17 00:00:00}}
+
+User: "Display risk graph for account 241080 from 2025-10-09 2am to 2025-10-16 3pm"
+→ {{"intent": "risk_graph", "name": "241080", "transaction_id": "", "merchant_id": "",
+    "start_date_time": 2025-10-09 02:00:00, "end_date_time": 2025-10-16 15:00:00}}
 
 User: "What's the risk score of transaction T001?"
 → {{"intent": "risk_score", "name": "", "transaction_id": "T001", "merchant_id": "",
-    "days_ago": null, "start_days_ago": null, "end_days_ago": null}}
+     "start_date_time": null, "end_date_time": null}}
 
+current time is the current_time.
 Now process this query:
-User question: {query}
+User question: {query,current_time}
 """
 
     try:
@@ -136,9 +145,8 @@ User question: {query}
         parsed.setdefault("name", "")
         parsed.setdefault("transaction_id", "")
         parsed.setdefault("merchant_id", "")
-        parsed.setdefault("days_ago", None)
-        parsed.setdefault("start_days_ago", None)
-        parsed.setdefault("end_days_ago", None)
+        parsed.setdefault("start_date_time", None)
+        parsed.setdefault("end_date_time", None)
         parsed.setdefault("confidence", 0.9)
 
         print(f"🔍 Parsed intent: {parsed}")

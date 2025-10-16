@@ -10,35 +10,32 @@ def _to_str(x):  # safe cast
     except Exception:
         return str(x)
 
-def _build_edges_df(days_range=None) -> pd.DataFrame:
+def _build_edges_df(step_range) -> pd.DataFrame:
     """
     Load one or multiple daily CSVs and concatenate.
-    days_range: None -> today; (start_days_ago, end_days_ago) inclusive descending.
+    step_range: (step_start, step_end) inclusive descending.
     """
-    if not days_range:
-        csv_path = resolve_today_csv()
-        return pd.read_csv(csv_path)
-    start, end = int(days_range[0]), int(days_range[1])
-    frames = []
-    for d in range(start, end - 1, -1):
-        try:
-            frames.append(load_data_by_days_ago(d))
-        except FileNotFoundError:
-            continue
-    if not frames:
-        return pd.DataFrame()
-    return pd.concat(frames, ignore_index=True)
+    csv_path = 'data/test_predictions_v2.0.csv' 
+    df = pd.read_csv(csv_path)
+    print(step_range)
+    if not step_range:
+        # 没写就读全部
+        return df
+    start, end = sorted((int(step_range[0]), int(step_range[1])), reverse=False)
+    # 过滤条件：step >= 11 且 step <= 200
+    filtered_df = df[(df['step'] >= start) & (df['step'] <= end)]
+    return filtered_df
 
 def render_person_graph(
     client_name: str,
     role: str = "both",  # "both" | "origin" | "destination"
-    days_range=None,
-    output_html="data/graph.html"
+    step_range=None,
+    output_html="data/risk_graph.html"
 ) -> str:
     """
     Build a 1-hop neighborhood graph for a given account with role filtering.
     """
-    df = _build_edges_df(days_range)
+    df = _build_edges_df(step_range)
     if df.empty:
         return "<p>⚠️ No data available for the selected date range.</p>"
 

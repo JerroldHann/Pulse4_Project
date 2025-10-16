@@ -4,8 +4,10 @@ from src.risk_engine import analyze_risk
 from src.graph_tool import render_person_graph, render_high_risk_network
 from src.transactions import get_transactions
 from src.simulator import save_and_predict
+from src.date import date_to_step_range
 import json
 import time
+from datetime import datetime
 
 
 # ---------- Basic Setup ----------
@@ -29,9 +31,8 @@ def json_dumps_pretty(obj):
 st.markdown("""
 ### 💡 You can ask:
 - **Risk Score**: What's the risk score of transaction 1735197544?
-- **Risk Graph**: Show the risk graph for account 468201 (default today)
+- **Risk Graph**: Show the risk graph for account 468201 (default all time)
 - **Risk Transactions**: List high-risk transactions for account 468201 (default today)
-- **Todo: **
 - **Risk Graph**: Show the risk graph for account 468201 over the past week
 - **Risk Transactions**: List high-risk transactions from 10 days ago to 5 days ago
 ---
@@ -40,7 +41,7 @@ st.markdown("""
 # ---------- Init session state ----------
 for k, v in {
     "intent": "", "auto_name": "", "auto_txid": "",
-    "days_ago": None, "start_days_ago": None, "end_days_ago": None,
+   "start_date_time": None, "end_date_time": None,
     "use_range": False, "input_query": "", "sim_json": ""
 }.items():
     st.session_state.setdefault(k, v)
@@ -70,36 +71,13 @@ with col1:
             # _set("auto_name", parsed.get("name", ""))
             # _set("auto_txid", parsed.get("transaction_id", ""))
             
-            days_ago = parsed.get("days_ago", None)
-            start_days = parsed.get("start_days_ago", None)
-            end_days = parsed.get("end_days_ago", None)
-
-            # --- Unified time logic ---
-            if days_ago is not None:
-                _set("days_ago", days_ago)
-                _set("start_days_ago", days_ago)
-                _set("end_days_ago", days_ago)
-                st.session_state["use_range"] = True
-                #_set("use_range", True)
-            elif start_days is not None or end_days is not None:
-                _set("days_ago", None)
-                _set("start_days_ago", start_days)
-                _set("end_days_ago", end_days)
-                st.session_state["use_range"] = True
-                # _set("use_range", True)
-            else:
-                _set("days_ago", None)
-                _set("start_days_ago", None)
-                _set("end_days_ago", None)
-                st.session_state["use_range"] = False
-                # _set("use_range", False)
-
-            st.toast(f"✅ Parsed: {_get('intent')} → {_get('auto_name') or _get('auto_txid')}")
+            st.session_state["start_date_time"] = parsed.get("start_date_time", "")
+            st.session_state["end_date_time"] = parsed.get("end_date_time", "")
 
     with c2:
         if st.button("Clear", key="btn_clear_auto"):
-            for k in ["intent","auto_name","auto_txid","days_ago",
-                      "start_days_ago","end_days_ago","input_query","use_range"]:
+            for k in ["intent","auto_name","auto_txid",
+                      "start_date_time","end_date_time","input_query","use_range"]:
                 st.session_state.pop(k, None)
             st.session_state["clear_trigger"] = True
             st.rerun()
@@ -126,36 +104,71 @@ with col2:
 
     # === Tab 2: Risk Graph ===
     with tabs[1]:
+        # start_date_time = "2025-10-01 00:00:00"
+        # end_date_time = "2025-10-16 03:00:00"
         st.subheader("🧩 Risk Graph")
         name = st.text_input("Client Name", key="auto_name2", value=_get("auto_name", ""))
         role = st.selectbox("Role filter", ["both", "origin", "destination"], index=0, key="role_graph")
-        use_range = st.checkbox(
-            "Use date range (days ago)",
+        use_time = st.checkbox(
+            "Use date range",
             value=any([
-                _get("use_range", False),
-                _get("days_ago") is not None,
-                _get("start_days_ago") is not None,
-                _get("end_days_ago") is not None
+                _get("start_date_time") is not None,
+                _get("end_date_time") is not None
             ]),
             key="chk_use_range_graph"
         )
+       
+        default_date = datetime.today().date()
+        if use_time:
+            # 从 session_state 获取用户之前的选择，如果没有，则使用默认值
+            start_date_time_auto = _get("start_date_time", None)
+            end_date_time_auto = _get("end_date_time", None)
+            
 
-        start_d = st.number_input(
-            "Start days ago", min_value=0,
-            value=int(_get("start_days_ago") or 0),
-            step=1, key="num_start_graph",
-            disabled=not use_range
-        )
-        end_d = st.number_input(
-            "End days ago", min_value=0,
-            value=int(_get("end_days_ago") or 0),
-            step=1, key="num_end_graph",
-            disabled=not use_range
-        )
+            # 如果之前有存储日期和时间，则填充，否则默认为空
+            if start_date_time_auto:
+                start_date_time_auto = datetime.strptime(start_date_time_auto, "%Y-%m-%d %H:%M:%S")
+                start_date = start_date_time_auto.date()
+                start_time = start_date_time_auto.time()
+            else:
+                start_date = default_date
+                start_time = datetime.today().time()
+
+            if end_date_time_auto:
+                end_date_time_auto = datetime.strptime(end_date_time_auto, "%Y-%m-%d %H:%M:%S")
+                end_date = end_date_time_auto.date()
+                end_time = end_date_time_auto.time()
+            else:
+                end_date = default_date
+                end_time = datetime.today().time()
+
+            # 用户选择开始日期和时间
+            start_date = st.date_input("Start date", min_value=datetime(2025, 1, 1), value=start_date)
+            start_time = st.time_input("Start time", value=start_time)
+
+            # 用户选择结束日期和时间
+            end_date = st.date_input("End date", min_value=datetime(2025, 1, 1), value=end_date)
+            end_time = st.time_input("End time", value=end_time)
+
+            # 将日期和时间拼接为 datetime 对象
+            start_datetime = datetime.combine(start_date, start_time)
+            end_datetime = datetime.combine(end_date, end_time)
+
+            # 将 datetime 对象转换为 "YYYY-MM-DD HH:MM:SS" 格式
+            start_date_time = start_datetime.strftime("%Y-%m-%d %H:%M:%S")
+            end_date_time = end_datetime.strftime("%Y-%m-%d %H:%M:%S")
+
 
         if st.button("Generate Graph", key="btn_graph"):
-            days_range = (int(start_d), int(end_d)) if use_range else None
-            html = render_person_graph(name or "241080", role=role, days_range=days_range)
+            # 判断是否使用日期范围
+           
+            step_range = date_to_step_range(start_date_time,end_date_time)
+           
+            # 生成图形的 HTML 内容
+            html = render_person_graph(name or "241080", role=role, step_range=step_range)
+            
+          
+            # 使用 Streamlit 组件显示生成的 HTML 文件
             st.components.v1.html(html, height=600, scrolling=True)
 
     # === Tab 3: Risk Transactions ===

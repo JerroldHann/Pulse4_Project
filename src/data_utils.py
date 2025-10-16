@@ -64,3 +64,4 @@ def build_feature_store(csv_path: str) -> dict:
         if c not in df.columns:
             raise ValueError(f"Missing column: {c}")
     return dict(zip(df["transaction_id"].astype(str), df["fraud_prob_pred"].astype(float)))
+
