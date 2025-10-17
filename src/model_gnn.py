@@ -186,7 +186,7 @@ df_out = pd.DataFrame({
     "isFraud_pred": preds,
 })
 
-file_path = "../data/test_predictions_v3.0.csv"
+file_path = "/home/yjing/Pulse4_Project/data/test_predictions_v3.0.csv"
 
 df_out = df_out.sort_values("step").reset_index(drop=True)
 df_out["transaction_id"] = "1743200002"
@@ -196,7 +196,7 @@ df_out = df_out[["transaction_id", "step", "orig_id", "dest_id", "amount", "frau
 
 OUTPUT_PATH = os.path.join(CURRENT_DIR, "inference_result.csv")
 
-df_out.to_csv(file_path, index=False)  # save in v3.0 (new)
+#df_out.to_csv(file_path, index=False)  # save in v3.0 (new)
 df_out.to_csv(OUTPUT_PATH, index=False)
 
 print(f"\n📄 推理完成，结果已保存至：{OUTPUT_PATH}\n")
@@ -219,6 +219,6 @@ try:
     string_out = df_out.to_string(index=False)
     print(string_out)
     st.json(string_out)  # Display the result as JSON in Streamlit
-
+    
 except Exception as e:
     print(f"⚠️ An error occurred while saving the result: {e}")

@@ -71,6 +71,9 @@ with col1:
             st.session_state["query"] = query
             st.session_state["start_date_time"] = parsed.get("start_date_time", "")
             st.session_state["end_date_time"] = parsed.get("end_date_time", "")
+            st.session_state["start_date_time2"] = parsed.get("start_date_time", "")
+            st.session_state["end_date_time2"] = parsed.get("end_date_time", "")
+            st.session_state["probability_threshold"] = parsed.get("probability_threshold", "")
 
     with c2:
         if st.button("Clear", key="btn_clear_auto"):
@@ -177,52 +180,68 @@ with tabs[1]:
     # === Tab 3: Risk Transactions ===
     with tabs[2]:
         st.subheader("📋 Risk Transactions")
-        cname = st.text_input("Filter by Client Name", value=_get("auto_name",""), key="auto_name3")
-        min_prob = st.slider("Minimum fraud probability", 0.0, 1.0, 0.5, key="sld_prob")
-        colA, colB, colC = st.columns(3)
+        cname = st.text_input("Filter by Client Name", value=_get("auto_name", ""), key="auto_name3")
+        probability_threshold = st.session_state.get("probability_threshold", 0.5)
+        min_prob = st.slider("Minimum fraud probability", 0.0, 1.0, probability_threshold, key="sld_prob")
+        
+        colA, colB = st.columns(2)
+        start_date_time_auto2 = st.session_state.get("start_date_time2")
+        end_date_time_auto2 = st.session_state.get("end_date_time2")
+        
+        print(f"start_date_time_auto2={start_date_time_auto2}, end_date_time_auto2={end_date_time_auto2}")
+        # Check if start_date_time_auto is not None before parsing
+        if start_date_time_auto2 != None:
+            start_date_time_auto2 = datetime.strptime(start_date_time_auto2, "%Y-%m-%d %H:%M:%S")
+            start_date2 = start_date_time_auto2.date()
+            start_time2 = start_date_time_auto2.time()
+            print(f"Parsed start_date2={start_date2}, start_time2={start_time2}")
+        else:
+            start_date2 = datetime.now().date()  # Default to today's date if None
+            start_time2 = datetime.now().time()  # Default to current time if None
+        print(f"Parsed start_date2={start_date2}, start_time2={start_time2}")
+        # Check if end_date_time_auto is not None before parsing
+        if end_date_time_auto2!= None:
+            end_date_time_auto2 = datetime.strptime(end_date_time_auto2, "%Y-%m-%d %H:%M:%S")
+            end_date2 = end_date_time_auto2.date()
+            end_time2 = end_date_time_auto2.time()
+        else:
+            end_date2 = datetime.now().date()  # Default to today's date if None
+            end_time2 = datetime.now().time()  # Default to current time if None
+
         with colA:
-            use_range2 = st.checkbox(
-                "Use date range (days ago)",
-                
-                value=any([
-                    _get("use_range", False),
-                    _get("days_ago") is not None,
-                    _get("start_days_ago") is not None,
-                    _get("end_days_ago") is not None
-                ]),
-                key="chk_use_range_list"
-            )
+            # 用户选择开始日期和时间
+            start_date2 = st.date_input("Start date", min_value=datetime(2025, 9, 15),  value=start_date2, key="start_date2")
+            start_time2 = st.time_input("Start time", value=start_time2, key="start_time2")
+            print(f"1start_date_time_auto2={start_date_time_auto2}, end_date_time_auto2={end_date_time_auto2}")
         with colB:
-            s2 = st.number_input(
-                "Start days ago", min_value=0,
-                value=int(_get("start_days_ago") or 0),
-                step=1, key="num_start_list",
-                disabled=not use_range2
-            )
-        with colC:
-            e2 = st.number_input(
-                "End days ago", min_value=0,
-                value=int(_get("end_days_ago") or 0),
-                step=1, key="num_end_list",
-                disabled=not use_range2
-            )
+            # 用户选择结束日期和时间
+            end_date2 = st.date_input("End date", min_value=datetime(2025, 9, 15),  value=end_date2, key="end_date2")
+            end_time2 = st.time_input("End time", value=end_time2, key="end_time2")
+        print(f"2start_date_time_auto2={end_date2}, end_time2={end_time2}")
+        # 将 datetime 对象转换为 "YYYY-MM-DD HH:MM:SS" 格式
+        start_datetime2= datetime.combine(start_date2, start_time2)
+        end_datetime2= datetime.combine(end_date2, end_time2)
+        print(f"Combined: start_datetime2={start_datetime2}, end_datetime2={end_datetime2}")
+        start_date_time_auto2 = start_datetime2.strftime("%Y-%m-%d %H:%M:%S")
+        end_date_time_auto2 = end_datetime2.strftime("%Y-%m-%d %H:%M:%S")
+        print(f"After combine: start_date_time_auto2={start_date_time_auto2}, end_date_time_auto2={end_date_time_auto2}")
+       
+        # 获取对应的步数范围
+        start_step2, end_step2 = date_to_step_range(start_date_time_auto2, end_date_time_auto2)
 
         df = get_transactions(
             client_name=cname,
             min_prob=min_prob,
-            start_days_ago=int(s2) if use_range2 else None,
-            end_days_ago=int(e2) if use_range2 else None
+            start_step=start_step2,
+            end_step=end_step2,
+
         )
         st.dataframe(df, use_container_width=True, key="df_list")
 
         if st.button("Build High-Risk Network", key="btn_highrisk"):
-            html_name = (
-                f"risk_network_{int(s2)}to{int(e2)}days.html"
-                if use_range2 else
-                f"risk_network_{int(_get('days_ago',0))}daysago.html"
-            )
-            html = render_high_risk_network(df, output_html=html_name)
-            st.components.v1.html(html, height=600, scrolling=True)
+            html_name = f"risk_network_{int(start_step2)}to{int(end_step2)}steps.html"
+            html = render_high_risk_network(df, output_html=html_name, risk_threshold=min_prob)
+            st.components.v1.html(html, height=650, scrolling=True)
 
     # === Tab 4: Simulated Real-time Data ===
     with tabs[3]:

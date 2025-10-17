@@ -94,6 +94,7 @@ Schema:
   "merchant_id": "",
   "start_date_time": str(YYYY-MM-DD HH:MM:SS),
   "end_date_time": str(YYYY-MM-DD HH:MM:SS)
+  "probability_threshold": float (0.0-1.0, default 0.5)
 }}
 
 Examples:
@@ -102,9 +103,9 @@ User: "What are today's risky transactions?"
 → {{"intent": "risk_list", "name": "", "transaction_id": "", "merchant_id": "",
     "start_date_time": "2025-10-16 00:00:00", "end_date_time": "2025-10-16 20:01:02"}}
 
-User: "Show risky transactions from 10 days ago to 5 days ago"
+User: "Show transactions from 25 days ago to 5 days ago with probability higher than 0.7"
 → {{"intent": "risk_list", "name": "", "transaction_id": "", "merchant_id": "",
-    "start_date_time": "2025-10-06 20:01:02", "end_date_time": "2025-10-11 20:01:02"}}
+    "start_date_time": "2025-09-21 20:01:02", "end_date_time": "2025-10-11 20:01:02","probability_threshold": 0.7}}
 
 User: "Display risk graph for account 241080 over the past week"
 → {{"intent": "risk_graph", "name": "241080", "transaction_id": "", "merchant_id": "",

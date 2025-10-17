@@ -1,6 +1,6 @@
 from datetime import datetime
 # 假设 744 对应的时间为 2025年10月16日 19:00:00
-base_time = datetime(2025, 10, 16, 19, 0, 0)
+base_time = datetime(2025, 10, 17, 8, 0, 0)
 max_step_database = 744
 def date_to_step_range(start_date, end_date):
     """
